@@ -5,6 +5,8 @@ import random
 from carousel import gfx, W, H, pen, px, Runs, text, text_width, tiny_text, tiny_width, TINY, ICONS, Stars, \
     during, around
 
+int, min, max, range, len, round, enumerate = int, min, max, range, len, round, enumerate     # (quicker to find as globals: see carousel.py)
+
 RAINBOW = ((230, 30, 30), (250, 120, 20), (250, 220, 30), (40, 200, 60), (40, 110, 240), (130, 60, 200))
 
 

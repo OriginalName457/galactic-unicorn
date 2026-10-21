@@ -1,19 +1,17 @@
 #!/bin/bash
 # Put the carousel on the Galactic Unicorn and set up clock syncing on the Pi.
 #
-# Over Wi-Fi (normal):  ./install.sh            copies carousel.py, net.py, the season scenes and main.py, then restarts it
+# (Most people use Unicorn Studio instead: studio/. This is the way for a Raspberry Pi that looks after the Unicorn.)
+#
+# Over Wi-Fi (normal):  ./install.sh            copies the carousel, the season scenes and main.py, then restarts it
 # Over USB (first time, or if Wi-Fi is broken):  ./install.sh --usb   (needs a data cable)
 set -e
 cd "$(dirname "$0")"
-# The carousel and season scenes are compiled here first (.mpy): they're too big for the Unicorn to compile itself.
-# carousel.py on the Unicorn is just carousel_stub.py, which loads carousel_app.mpy.
-SEASONS="winter spring summer fall"
-MPY=$(command -v mpy-cross || echo ~/.local/bin/mpy-cross)     # must be mpy-cross 1.21 (pip install mpy-cross==1.21.0)
-mkdir -p build
-$MPY -o build/carousel_app.mpy carousel.py
-for s in $SEASONS; do $MPY -o build/$s.mpy $s.py; done
-cp carousel_stub.py build/carousel.py
-FILES="net.py build/carousel_app.mpy $(for s in $SEASONS; do echo build/$s.mpy; done) build/carousel.py main.py"
+# The files for the Unicorn are gathered (and the big ones compiled: the Unicorn can't compile them itself) by
+# studio/build_board.py, the same as Unicorn Studio uses. Needs mpy-cross 1.21 (pip install mpy-cross==1.21.0).
+python3 studio/build_board.py >/dev/null
+FILES=$(python3 -c "import json; print(' '.join('studio/board_files/' + f for f in json.load(open('studio/board_files/manifest.json'))['files']))")
+[ -f my_scenes.py ] && FILES="my_scenes.py $FILES"     # your own scenes, if you've made some (my_scenes_example.py)
 # (secrets.py, the Wi-Fi passwords, only needs copying once, over USB)
 
 if [ "$1" = "--usb" ]; then

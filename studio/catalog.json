@@ -1,0 +1,621 @@
+{
+ "categories": [
+  "Everyday",
+  "Weather & sky",
+  "Fall",
+  "Winter",
+  "Spring",
+  "Summer",
+  "Holidays"
+ ],
+ "scenes": [
+  {
+   "name": "Clock",
+   "title": "Clock",
+   "category": "Everyday",
+   "when": "All year",
+   "about": "The time with a little seasonal picture, then the date.",
+   "file": "carousel"
+  },
+  {
+   "name": "Reminder",
+   "title": "Gift reminders",
+   "category": "Everyday",
+   "when": "All year",
+   "about": "\"Did you get a gift?\" before Mother's Day and Father's Day.",
+   "file": "carousel"
+  },
+  {
+   "name": "Countdown",
+   "title": "Holiday countdowns",
+   "category": "Everyday",
+   "when": "All year",
+   "about": "Days until the big holidays (and your own dates), greetings on the day.",
+   "file": "carousel"
+  },
+  {
+   "name": "Kotoba",
+   "title": "Japanese words",
+   "category": "Everyday",
+   "when": "All year",
+   "about": "A Japanese flashcard: 10 new words a day, the word then its meaning.",
+   "file": "carousel"
+  },
+  {
+   "name": "Note",
+   "title": "Your messages",
+   "category": "Everyday",
+   "when": "All year",
+   "about": "The messages you add in Unicorn Studio, scrolling by.",
+   "file": "carousel"
+  },
+  {
+   "name": "Forecast",
+   "title": "Forecast",
+   "category": "Weather & sky",
+   "when": "All year",
+   "about": "Today's weather: the temperature, the high and low, and what's coming.",
+   "file": "carousel"
+  },
+  {
+   "name": "Moon",
+   "title": "Moon",
+   "category": "Weather & sky",
+   "when": "All year",
+   "about": "Tonight's moon in its phase (on clear nights).",
+   "file": "carousel"
+  },
+  {
+   "name": "Outside",
+   "title": "Outside",
+   "category": "Weather & sky",
+   "when": "All year",
+   "about": "The sky right now: sun or moon, clouds, rain, snow, lightning.",
+   "file": "carousel"
+  },
+  {
+   "name": "Orchard",
+   "title": "Apple orchard",
+   "category": "Fall",
+   "when": "Sep 1 - Oct 20",
+   "about": "Apple picking: a tree heavy with apples, one dropping now and then into the basket.",
+   "file": "fall",
+   "start": [
+    9,
+    1
+   ]
+  },
+  {
+   "name": "Leaves",
+   "title": "Falling leaves",
+   "category": "Fall",
+   "when": "Sep 10 - Nov 30",
+   "about": "Dusky sky, a little autumn tree, leaves drifting down into piles.",
+   "file": "carousel",
+   "start": [
+    9,
+    10
+   ]
+  },
+  {
+   "name": "Scarecrow",
+   "title": "Scarecrow",
+   "category": "Fall",
+   "when": "Sep 15 - Oct 31",
+   "about": "A scarecrow in the cornfield under a harvest moon, crows hopping about and flapping off.",
+   "file": "fall",
+   "start": [
+    9,
+    15
+   ]
+  },
+  {
+   "name": "Latte",
+   "title": "Pumpkin spice latte",
+   "category": "Fall",
+   "when": "Sep 20 - Nov 30",
+   "about": "A pumpkin spice latte steaming away.",
+   "file": "carousel",
+   "start": [
+    9,
+    20
+   ]
+  },
+  {
+   "name": "Torii",
+   "title": "Fushimi Inari gates",
+   "category": "Fall",
+   "when": "Oct 1 - Nov 30",
+   "about": "A walk through the thousand red gates of Fushimi Inari, maple leaves falling.",
+   "file": "carousel",
+   "start": [
+    10,
+    1
+   ]
+  },
+  {
+   "name": "Ghost",
+   "title": "Ghost",
+   "category": "Fall",
+   "when": "Oct 1 - Nov 1",
+   "about": "A friendly ghost floating over a graveyard.",
+   "file": "carousel",
+   "start": [
+    10,
+    1
+   ]
+  },
+  {
+   "name": "Kinkaku",
+   "title": "Golden Pavilion",
+   "category": "Fall",
+   "when": "Oct 1 - Nov 30",
+   "about": "Kinkaku-ji, the Golden Pavilion, glowing over its pond with maples on either side.",
+   "file": "carousel",
+   "start": [
+    10,
+    1
+   ]
+  },
+  {
+   "name": "Pumpkins",
+   "title": "Jack-o'-lanterns",
+   "category": "Fall",
+   "when": "Oct 1 - Nov 8",
+   "about": "Jack-o'-lanterns flickering under a harvest moon with bats.",
+   "file": "carousel",
+   "start": [
+    10,
+    1
+   ]
+  },
+  {
+   "name": "Fuji",
+   "title": "Mt Fuji",
+   "category": "Fall",
+   "when": "Oct 1 - Nov 30",
+   "about": "Mt Fuji at sunset with the shinkansen zipping past.",
+   "file": "carousel",
+   "start": [
+    10,
+    1
+   ]
+  },
+  {
+   "name": "XmasTree",
+   "title": "Christmas tree",
+   "category": "Winter",
+   "when": "Dec 1 - Dec 26",
+   "about": "A Christmas tree with twinkling lights, a shining star and presents underneath, snow outside.",
+   "file": "winter",
+   "start": [
+    12,
+    1
+   ]
+  },
+  {
+   "name": "Cocoa",
+   "title": "Hot cocoa",
+   "category": "Winter",
+   "when": "Dec 1 - Feb 28",
+   "about": "Hot cocoa with marshmallows.",
+   "file": "winter",
+   "start": [
+    12,
+    1
+   ]
+  },
+  {
+   "name": "Aurora",
+   "title": "Northern lights",
+   "category": "Winter",
+   "when": "Dec 1 - Feb 28",
+   "about": "Northern lights rippling over the snowy pines on a cold winter night.",
+   "file": "winter",
+   "start": [
+    12,
+    1
+   ]
+  },
+  {
+   "name": "Sleigh",
+   "title": "Santa's sleigh",
+   "category": "Winter",
+   "when": "Dec 1 - Dec 25",
+   "about": "Santa's sleigh flying past a big moon over sleeping rooftops, Rudolph's nose blinking.",
+   "file": "winter",
+   "start": [
+    12,
+    1
+   ]
+  },
+  {
+   "name": "Cabin",
+   "title": "Snowy cabin",
+   "category": "Winter",
+   "when": "Dec 1 - Feb 28",
+   "about": "A little log cabin in the snowy pines, window glowing, smoke curling from the chimney.",
+   "file": "winter",
+   "start": [
+    12,
+    1
+   ]
+  },
+  {
+   "name": "Snowman",
+   "title": "Snowman",
+   "category": "Winter",
+   "when": "Dec 10 - Feb 28",
+   "about": "A snowman in a red scarf, waving, with \"let it snow\" drifting in beside him.",
+   "file": "winter",
+   "start": [
+    12,
+    10
+   ]
+  },
+  {
+   "name": "Skater",
+   "title": "Ice skater",
+   "category": "Winter",
+   "when": "Dec 15 - Feb 28",
+   "about": "A skater gliding back and forth across a frozen pond, snow falling.",
+   "file": "winter",
+   "start": [
+    12,
+    15
+   ]
+  },
+  {
+   "name": "Kite",
+   "title": "Kite",
+   "category": "Spring",
+   "when": "Mar 1 - May 31",
+   "about": "A breezy spring day: a kite dancing on its string, its tail flicking, clouds racing by.",
+   "file": "spring",
+   "start": [
+    3,
+    1
+   ]
+  },
+  {
+   "name": "Showers",
+   "title": "April showers",
+   "category": "Spring",
+   "when": "Mar 18 - Apr 30",
+   "about": "April showers: rain from drifting clouds, tulips pushing up and opening.",
+   "file": "spring",
+   "start": [
+    3,
+    18
+   ]
+  },
+  {
+   "name": "Sakura",
+   "title": "Cherry blossoms",
+   "category": "Spring",
+   "when": "Mar 20 - Apr 25",
+   "about": "Cherry blossoms in full bloom, petals drifting on the breeze, a lantern glowing (spring in Japan).",
+   "file": "spring",
+   "start": [
+    3,
+    20
+   ]
+  },
+  {
+   "name": "Garden",
+   "title": "Spring garden",
+   "category": "Spring",
+   "when": "Apr 1 - May 31",
+   "about": "A spring garden: flowers swaying, a bumblebee buzzing around, a butterfly fluttering by.",
+   "file": "spring",
+   "start": [
+    4,
+    1
+   ]
+  },
+  {
+   "name": "Beach",
+   "title": "Beach",
+   "category": "Summer",
+   "when": "Jun 1 - Aug 31",
+   "about": "The beach: waves rolling in, a sailboat on the horizon, a gull flapping overhead, an umbrella.",
+   "file": "summer",
+   "start": [
+    6,
+    1
+   ]
+  },
+  {
+   "name": "Campfire",
+   "title": "Campfire",
+   "category": "Summer",
+   "when": "Jun 1 - Nov 10",
+   "about": "A crackling campfire with a tent, pines, sparks and stars.",
+   "file": "carousel",
+   "start": [
+    6,
+    1
+   ]
+  },
+  {
+   "name": "Fireflies",
+   "title": "Fireflies",
+   "category": "Summer",
+   "when": "Jun 1 - Aug 31",
+   "about": "A warm summer night: tall grass swaying, fireflies blinking on and off.",
+   "file": "summer",
+   "start": [
+    6,
+    1
+   ]
+  },
+  {
+   "name": "IceCream",
+   "title": "Ice cream",
+   "category": "Summer",
+   "when": "Jun 1 - Aug 31",
+   "about": "An ice cream cone (no steam!) and summery words.",
+   "file": "summer",
+   "start": [
+    6,
+    1
+   ]
+  },
+  {
+   "name": "Storm",
+   "title": "Summer storm",
+   "category": "Summer",
+   "when": "Jun 15 - Aug 31",
+   "about": "A summer thunderstorm rolling in at dusk: rain, and every so often a crack of lightning.",
+   "file": "summer",
+   "start": [
+    6,
+    15
+   ]
+  },
+  {
+   "name": "Dream",
+   "title": "MLK Day",
+   "category": "Holidays",
+   "when": "Jan 17 - Jan 18",
+   "about": "MLK Day: the sun rising, a dove with an olive branch, \"I have a dream\".",
+   "file": "winter",
+   "start": [
+    1,
+    17
+   ]
+  },
+  {
+   "name": "Groundhog",
+   "title": "Groundhog Day",
+   "category": "Holidays",
+   "when": "Jan 30 - Feb 2",
+   "about": "Groundhog Day: he pops up, looks around, sees his shadow.",
+   "file": "winter",
+   "start": [
+    1,
+    30
+   ]
+  },
+  {
+   "name": "Candy",
+   "title": "Valentine's hearts",
+   "category": "Holidays",
+   "when": "Feb 1 - Feb 14",
+   "about": "Valentine's conversation hearts: BE MINE, XOXO, HUG ME.",
+   "file": "winter",
+   "start": [
+    2,
+    1
+   ]
+  },
+  {
+   "name": "Flag",
+   "title": "Stars and stripes",
+   "category": "Holidays",
+   "when": "Feb 15, May 28 - May 31, Jun 28 - Jul 5, Sep 4 - Sep 6, Nov 11",
+   "about": "The stars and stripes, rippling in the breeze (for the flag holidays).",
+   "file": "carousel",
+   "start": [
+    2,
+    15
+   ]
+  },
+  {
+   "name": "Rainbow",
+   "title": "St. Patrick's rainbow",
+   "category": "Holidays",
+   "when": "Mar 1 - Mar 18",
+   "about": "St. Patrick's: a rainbow ending in a pot of gold, shamrocks tumbling across a green hill.",
+   "file": "spring",
+   "start": [
+    3,
+    1
+   ]
+  },
+  {
+   "name": "PiDay",
+   "title": "Pi Day",
+   "category": "Holidays",
+   "when": "Mar 13 - Mar 14",
+   "about": "Pi Day (3/14): a pie, and the digits of pi marching past.",
+   "file": "spring",
+   "start": [
+    3,
+    13
+   ]
+  },
+  {
+   "name": "Bunny",
+   "title": "Easter bunny",
+   "category": "Holidays",
+   "when": "Mar 14 - Mar 29",
+   "about": "Easter: a bunny hops across the meadow past painted eggs hidden in the grass.",
+   "file": "spring",
+   "start": [
+    3,
+    14
+   ]
+  },
+  {
+   "name": "Fools",
+   "title": "April Fools'",
+   "category": "Holidays",
+   "when": "Apr 1",
+   "about": "April Fools: the screen is upside down! ...then rights itself.",
+   "file": "spring",
+   "start": [
+    4,
+    1
+   ]
+  },
+  {
+   "name": "Earth",
+   "title": "Earth Day",
+   "category": "Holidays",
+   "when": "Apr 19 - Apr 22",
+   "about": "Earth Day: our little planet turning in space.",
+   "file": "spring",
+   "start": [
+    4,
+    19
+   ]
+  },
+  {
+   "name": "Picado",
+   "title": "Cinco de Mayo",
+   "category": "Holidays",
+   "when": "May 3 - May 5",
+   "about": "Cinco de Mayo: strings of papel picado fluttering, confetti falling.",
+   "file": "spring",
+   "start": [
+    5,
+    3
+   ]
+  },
+  {
+   "name": "Bouquet",
+   "title": "Mother's Day bouquet",
+   "category": "Holidays",
+   "when": "May 6 - May 9",
+   "about": "Mother's Day: a bouquet in a vase with little hearts floating up.",
+   "file": "spring",
+   "start": [
+    5,
+    6
+   ]
+  },
+  {
+   "name": "Grill",
+   "title": "Backyard grill",
+   "category": "Holidays",
+   "when": "Jun 17 - Jun 20, Jul 1 - Jul 5",
+   "about": "The backyard grill: burgers sizzling, flames flickering, smoke curling up.",
+   "file": "summer",
+   "start": [
+    6,
+    17
+   ]
+  },
+  {
+   "name": "Juneteenth",
+   "title": "Juneteenth",
+   "category": "Holidays",
+   "when": "Jun 17 - Jun 19",
+   "about": "Juneteenth: its flag rippling: a bursting star rising over the horizon, red below and blue above.",
+   "file": "summer",
+   "start": [
+    6,
+    17
+   ]
+  },
+  {
+   "name": "Meteors",
+   "title": "Shooting stars",
+   "category": "Holidays",
+   "when": "Aug 8 - Aug 15",
+   "about": "The Perseids (mid August): shooting stars across a dark sky.",
+   "file": "summer",
+   "start": [
+    8,
+    8
+   ]
+  },
+  {
+   "name": "Bus",
+   "title": "Back to school",
+   "category": "Holidays",
+   "when": "Aug 28 - Sep 12",
+   "about": "Back to school: the yellow school bus rolls up, stops (stop sign out!), and heads off.",
+   "file": "fall",
+   "start": [
+    8,
+    28
+   ]
+  },
+  {
+   "name": "Turkey",
+   "title": "Thanksgiving turkey",
+   "category": "Holidays",
+   "when": "Nov 1 - Nov 26",
+   "about": "Thanksgiving: a turkey struts across the leaves, stops, fans out his tail.",
+   "file": "fall",
+   "start": [
+    11,
+    1
+   ]
+  },
+  {
+   "name": "Pie",
+   "title": "Pumpkin pie",
+   "category": "Holidays",
+   "when": "Nov 11 - Nov 27",
+   "about": "A warm pumpkin pie with a dollop of cream.",
+   "file": "fall",
+   "start": [
+    11,
+    11
+   ]
+  },
+  {
+   "name": "Fireworks",
+   "title": "Fireworks",
+   "category": "Holidays",
+   "when": "Dec 31 - Jan 2, Jun 30 - Jul 5",
+   "about": "Fireworks: gold and silver for New Year's (with the year), red, white and blue for the 4th.",
+   "file": "carousel",
+   "start": [
+    12,
+    31
+   ]
+  }
+ ],
+ "tunes": {
+  "beep": "A5:1",
+  "chime": "E5:3 C5:3 D5:3 G4:6 -:2 G4:3 D5:3 E5:3 C5:6",
+  "love": "C5:2 E5:2 G5:2 C6:4 -:1 G5:1 C6:6",
+  "sakura": "A4:3 A4:3 B4:6 A4:3 A4:3 B4:6 A4:3 B4:3 C5:3 B4:3 A4:3 B4:2 A4:2 F4:6",
+  "spooky": "E4:3 G4:3 A#4:3 A4:6 -:2 E4:2 D#4:8",
+  "fanfare": "G4:2 C5:2 E5:2 G5:4 E5:2 G5:6",
+  "doorbell": "E5:4 C5:6",
+  "konbini": "E5:3 C5:3 G4:3 C5:3 D5:3 G5:5 -:1 D5:3 E5:3 D5:3 G4:3 C5:8"
+ },
+ "icons": [
+  "clover",
+  "egg",
+  "flag",
+  "flower",
+  "gift",
+  "globe",
+  "heart",
+  "hog",
+  "leaf",
+  "pie",
+  "pumpkin",
+  "spark",
+  "star",
+  "sun",
+  "tree",
+  "turkey"
+ ]
+}

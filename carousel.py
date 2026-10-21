@@ -14,6 +14,14 @@
 #   N                   next scene (like the A button)
 #   X name              run name.py's run(gu) (an experiment pushed from the Pi) and reply with its result
 #   P                   how long each scene takes to draw (ms, slowest frame) and free memory
+#   G Name              show a scene now (by its class name, or an animation's id)
+#   TIMER 300 Tea       a kitchen timer: counts down on screen, then rings ("TIMER 0" cancels)
+#   ?                   status
+# Replies to commands sent over USB are printed as "@@ reply" (Unicorn Studio reads them).
+#
+# Your choices (scenes switched off, alarms, your own dates and messages, your own pixel animations, the weather's
+# town) are in settings.json, written by Unicorn Studio (studio/unicorn_studio.py). Without a Pi, the Unicorn keeps
+# its own clock and fetches the weather itself over Wi-Fi (online.py).
 #
 # The same commands also arrive over Wi-Fi (see net.py), so a power-only cable is enough.
 
@@ -24,6 +32,21 @@ import sys
 import gc
 
 import net
+from machine import mem32
+
+# The built-ins the scenes use most, as globals: MicroPython looks a name up in the module's globals before the
+# built-ins, and a name that isn't there means searching the table up to an empty slot (slow in a big module).
+int, min, max, abs, range, len, round, float, enumerate, str = int, min, max, abs, range, len, round, float, \
+    enumerate, str
+
+# Breadcrumbs for tracking down freezes: kept in the watchdog's scratch registers, which survive the watchdog's
+# restart (not a power cut). audioring.py reads the last ones at start-up; "?" reports them after a freeze.
+CRUMB, FRAMES, PUMPS, PUMP_AT = 0x4005800c, 0x40058010, 0x40058014, 0x40058018
+wdt = None              # the watchdog: started with the speaker stream, restarts the Unicorn if it ever freezes
+
+
+def crumb(n):
+    mem32[CRUMB] = n
 
 from galactic import GalacticUnicorn
 from picographics import PicoGraphics, DISPLAY_GALACTIC_UNICORN
@@ -45,6 +68,19 @@ gfx = PicoGraphics(display=DISPLAY_GALACTIC_UNICORN)
 W, H = GalacticUnicorn.WIDTH, GalacticUnicorn.HEIGHT
 
 custom_msg = ""
+
+
+def load_settings():
+    try:
+        import json
+        with open("settings.json") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+SETTINGS = load_settings()
+OFF = set(SETTINGS.get("off", ()))      # scenes switched off (class names, or animation ids)
 
 
 def pen(r, g, b):
@@ -479,9 +515,9 @@ class Clock:
     def draw(self, t, dt):
         lt = time.localtime()
         if t < 6:
-            h = lt[3] % 12 or 12
+            h = lt[3] if SETTINGS.get("24h") else lt[3] % 12 or 12
             hs, ms = str(h), "%02d" % lt[4]
-            ampm = "pm" if lt[3] >= 12 else "am"
+            ampm = "" if SETTINGS.get("24h") else "pm" if lt[3] >= 12 else "am"
             total = text_width(hs) + 4 + text_width(ms) + 2 + text_width(ampm, "bitmap6")
             x = 8 + (W - 8 - total) // 2
             sprite(self.mini, 1, 3, self.cols)
@@ -585,6 +621,14 @@ def holidays(y):
             (12, 25, "Christmas", "Merry Christmas!", "tree", 30),
             (12, 31, "New Year's Eve", "Happy New Year's Eve!", "spark", 0),
         ]
+        for e in SETTINGS.get("dates", ()):         # your own: birthdays, trips... {"name", "date": "MM-DD" or
+            try:                                    # "YYYY-MM-DD", "greeting", "icon", "lead": days of countdown}
+                p = [int(v) for v in e["date"].split("-")]
+                if len(p) == 2 or p[0] == y:
+                    _holidays[y].append((p[-2], p[-1], e["name"], e.get("greeting") or e["name"] + "!",
+                                         e.get("icon") if e.get("icon") in ICONS else "star", int(e.get("lead", 0))))
+            except (KeyError, ValueError, IndexError):
+                pass
     return _holidays[y]
 
 
@@ -803,16 +847,23 @@ class Countdown:
 
 
 class Note:
-    """A custom message sent from the Pi (unicorn.py say ...)."""
+    """Your messages (from Unicorn Studio, or `unicorn.py say ...`), one per visit."""
     SPEED = 12
+    turn = 0
 
     def __init__(self):
-        self.msg = custom_msg
+        msgs = Note.messages()
+        self.msg = msgs[Note.turn % len(msgs)]
+        Note.turn += 1
         self.dur = (W + text_width(self.msg)) / self.SPEED + 0.5
 
     @staticmethod
+    def messages():
+        return [m for m in list(SETTINGS.get("messages", [])) + [custom_msg] if m]
+
+    @staticmethod
     def available():
-        return bool(custom_msg)
+        return bool(Note.messages())
 
     def draw(self, t, dt):
         text(self.msg, W - t * self.SPEED, 2, pen(120, 220, 255))
@@ -1557,6 +1608,138 @@ class Moon:
             text(self.pct, 14 + (W - 14 - text_width(self.pct, "bitmap6")) // 2, 3, ink, "bitmap6")
 
 
+# ---------------------------------------------------------------- alarms, timers and your own animations
+
+alert = [None]          # text to show right away (an alarm went off, or a timer finished)
+timer = [None, ""]      # [ticks_ms when it rings, label] while a kitchen timer is running
+
+
+class Alert:
+    """An alarm's (or a finished timer's) message, flashing, three times across. Any button stops it."""
+    SPEED = 14
+
+    def __init__(self):
+        self.msg = alert[0] or ""
+        alert[0] = None
+        self.tw = text_width(self.msg)
+        self.dur = 3 * (W + self.tw) / self.SPEED
+
+    def draw(self, t, dt):
+        k = wave(t, 8)
+        gfx.set_pen(pen(60 * k, 20 * k, 0))
+        gfx.rectangle(0, 0, W, 1)
+        gfx.rectangle(0, H - 1, W, 1)
+        text(self.msg, W - (t * self.SPEED) % (W + self.tw), 2, pen(255, 200 + 55 * k, 80 + 100 * k))
+
+
+class Timer:
+    """A kitchen timer ("TIMER 300 Tea"): its name and the minutes and seconds left, until it rings."""
+    dur = 1e9           # stays until it rings (A cancels it)
+
+    def __init__(self):
+        self.label = timer[1]
+        self.lw = text_width(self.label, "bitmap6") if self.label else 0
+
+    @staticmethod
+    def available():
+        return timer[0] is not None
+
+    def draw(self, t, dt):
+        if timer[0] is None:
+            return
+        left = max(0, time.ticks_diff(timer[0], time.ticks_ms()) // 1000)
+        s = "%d:%02d" % (left // 60, left % 60) if left < 3600 else "%d:%02d:%02d" % (left // 3600, left // 60 % 60,
+                                                                                       left % 60)
+        sw = text_width(s)
+        if self.label and self.lw + sw + 4 <= W:
+            text(self.label, 1, 3, pen(120, 200, 255), "bitmap6")
+            text(s, W - sw, 2, pen(255, 190, 60))
+        else:
+            text(s, (W - sw) // 2, 2, pen(255, 190, 60))
+        gfx.set_pen(pen(255 * wave(t, 6), 120, 0))           # a little ticking light in the corner
+        gfx.pixel(0, 0)
+
+
+def check_timer():
+    if timer[0] is not None and time.ticks_diff(timer[0], time.ticks_ms()) <= 0:
+        alert[0] = (timer[1] + " done!") if timer[1] else "Time's up!"
+        timer[0] = None
+        speaker.play(SETTINGS.get("timer_sound", "chime"))
+
+
+_chimed = {}
+
+
+def alarms():
+    """The alarms from settings.json: {"time": "17:00", "days": [0..6, Monday = 0], "sound": "konbini", "text": ...}."""
+    if not clock_synced():
+        return
+    lt = time.localtime()
+    hm = "%02d:%02d" % (lt[3], lt[4])
+    for i, a in enumerate(SETTINGS.get("alarms", ())):
+        if a.get("time") == hm and lt[6] in a.get("days", (0, 1, 2, 3, 4, 5, 6)) and _chimed.get(i) != lt[2]:
+            _chimed[i] = lt[2]
+            if a.get("sound"):
+                try:
+                    speaker.play(a["sound"])
+                except (KeyError, ValueError, IndexError):
+                    pass
+            if a.get("text"):
+                alert[0] = a["text"]
+
+
+class Pixels:
+    """One of your own pixel animations, drawn in Unicorn Studio (art_<id>.json): frames of 53x11 pixels, each
+    pixel a letter for its colour in the palette ("." is black), played at fps, with an optional scrolling text."""
+    ID = ""
+
+    def __init__(self):
+        import json
+        with open("art_%s.json" % self.ID) as f:
+            a = json.load(f)
+        pens = [pen(*c) for c in a["palette"]]
+        self.frames = []
+        for fr in a["frames"]:                    # each frame as runs of one colour, for quick drawing
+            runs = []
+            for y in range(H):
+                row = fr[y * W:(y + 1) * W]
+                x = 0
+                while x < len(row):
+                    n = 1
+                    while x + n < len(row) and row[x + n] == row[x]:
+                        n += 1
+                    if row[x] != ".":
+                        runs.append((pens[int(row[x], 36)], x, y, n))
+                    x += n
+            self.frames.append(runs)
+        del a["frames"]
+        self.fps = max(0.5, a.get("fps", 4))
+        self.msg = a.get("text", "")
+        self.ink = pen(*a.get("text_color", (255, 255, 255)))
+        self.tw = text_width(self.msg) if self.msg else 0
+        self.dur = a.get("dur") or ((W + self.tw) / 12 + 1 if self.msg else 12)
+
+    def draw(self, t, dt):
+        last = None
+        for p, x, y, n in self.frames[int(t * self.fps) % len(self.frames)]:
+            if p is not last:
+                gfx.set_pen(p)
+                last = p
+            gfx.rectangle(x, y, n, 1)
+        if self.msg:
+            text(self.msg, W - t * 12, 2, self.ink)
+
+
+def art_scene(e):
+    class Art(Pixels):
+        ID = e["id"]
+    return Art
+
+
+def name_of(cls):
+    return getattr(cls, "ID", "") or cls.__name__
+
+
 # ---------------------------------------------------------------- what plays when
 
 ALWAYS = [Clock, Kotoba, Forecast, Countdown, Clock, Kotoba, Note, Forecast, Countdown]   # between seasonal scenes
@@ -1601,36 +1784,84 @@ def season_module(m):
     return _season[1]
 
 
+_mine = []              # [my_scenes module or None], loaded the first time it's needed
+mine_error = ""
+ARTS = [art_scene(e) for e in SETTINGS.get("art", ()) if e.get("id")]
+
+
+def mine():
+    """Your own scenes in my_scenes.py (see my_scenes_example.py), if there is one."""
+    global mine_error
+    if not _mine:
+        try:
+            import my_scenes
+            _mine.append(my_scenes)
+        except ImportError as e:
+            _mine.append(None)
+            if "my_scenes" not in str(e):
+                mine_error = "my_scenes: %r" % e
+        except Exception as e:
+            _mine.append(None)
+            mine_error = "my_scenes: %r" % e
+    return _mine[0]
+
+
+def find_scene(name):
+    """A scene by its class name (or an animation's id), from anywhere: for "G Name"."""
+    if name in globals() and hasattr(globals()[name], "draw"):
+        return globals()[name]
+    for cls in ARTS:
+        if cls.ID == name:
+            return cls
+    for mod in (mine(), season_module(today()[1])):
+        if mod and hasattr(getattr(mod, name, None), "draw"):
+            return getattr(mod, name)
+    for m in range(1, 13, 3):                           # another season's scene: load that season for a moment
+        mod = season_module(m)
+        if mod and hasattr(getattr(mod, name, None), "draw"):
+            return getattr(mod, name)
+
+
+def art_when(e):
+    w = e.get("when")
+    return during(*w) if w else lambda y, m, d: True
+
+
 def build_playlist():
     """Today's round: the scenes in season, shuffled, with the everyday ones mixed in."""
-    if not clock_synced() and not date_override:    # just switched on: it thinks it's 1 Jan 2021 until the Pi
-        return [Campfire, Kotoba]             # sends the time (within a minute), so nothing date-based yet
+    if not clock_synced() and not date_override:    # just switched on: it thinks it's 1 Jan 2021 until it learns
+        return [c for c in (Campfire, Kotoba) if c.__name__ not in OFF] or [Clock]   # the time: nothing dated yet
     y, m, d = today()
     mod = season_module(m)
+    my = mine()
     pool = []
-    for cls, when, n in SCENES + (getattr(mod, "SCENES", []) if mod else []):
+    arts = [(cls, art_when(e), int(e.get("times", 1))) for cls, e in zip(ARTS, SETTINGS.get("art", ()))]
+    for cls, when, n in SCENES + (getattr(mod, "SCENES", []) if mod else []) + getattr(my, "SCENES", []) + arts:
+        if name_of(cls) in OFF:
+            continue
         try:
             if when(y, m, d):
                 pool += [cls] * n
         except Exception:
             pass
     w = weather()                                       # what's actually happening outside
-    if w:
+    if w and "Outside" not in OFF:
         wet = w["kind"] in ("rain", "snow", "storm", "fog") or w.get("storm_soon")
         pool += [Outside] * (3 if wet else 1)
-        if is_night(w) and w["kind"] in ("clear", "partly"):
+        if is_night(w) and w["kind"] in ("clear", "partly") and "Moon" not in OFF:
             pool.append(Moon)
         if mod:
             kinds = [w["kind"]] + (["storm"] if w.get("storm_soon") else [])
             if w["kind"] == "clear" and not is_night(w):
-                kinds.append("sunny")
+                kinds[0] = "sunny"                      # "clear" is for clear nights (aurora, fireflies)
             for k in kinds:
                 for cls in getattr(mod, "WEATHER", {}).get(k, ()):
-                    pool += [cls] * 2
-    if gift_reminders():                                # reminder days: it comes round again and again
+                    if cls in pool:                         # only scenes in season (and switched on) today: a
+                        pool += [cls] * 2                   # sunny day in late October is no reason for apples
+    if gift_reminders() and "Reminder" not in OFF:      # reminder days: it comes round again and again
         pool += [Reminder] * max(3, len(pool) // 2)
     if not pool:
-        pool = [Campfire]
+        pool = [Campfire] if "Campfire" not in OFF else [Clock]
     order = []
     while len(order) < 12:
         left = pool[:]
@@ -1640,12 +1871,13 @@ def build_playlist():
                 left.append(cls)
                 cls = left.pop(0)
             order.append(cls)
+    always = [cls for cls in ALWAYS + getattr(my, "ALWAYS", []) if name_of(cls) not in OFF] or [Clock]
     out = []
     for i, cls in enumerate(order):
         out.append(cls)
         if i % 2:
-            out.append(ALWAYS[(i // 2) % len(ALWAYS)])
-    for cls in ALWAYS[len(order) // 2:]:                 # everything everyday gets a turn
+            out.append(always[(i // 2) % len(always)])
+    for cls in always[len(order) // 2:]:                 # everything everyday gets a turn
         out.append(cls)
     return out
 
@@ -1670,6 +1902,7 @@ TUNES = {
     "doorbell": "E5:4 C5:6",
     "konbini": "E5:3 C5:3 G4:3 C5:3 D5:3 G5:5 -:1 D5:3 E5:3 D5:3 G4:3 C5:8",     # the FamilyMart door chime
 }
+TUNES.update(SETTINGS.get("tunes", {}))     # your own, from Unicorn Studio
 SEMITONE = {"C": -9, "C#": -8, "D": -7, "D#": -6, "E": -5, "F": -4, "F#": -3, "G": -2, "G#": -1, "A": 0,
             "A#": 1, "B": 2}
 
@@ -1710,6 +1943,7 @@ class Speaker:
                 soft = 1 + 2
             self.ch = gu.synth_channel(0)
             self.ch.configure(waveforms=soft, attack=0.01, decay=0.12, sustain=0.6, release=0.12, volume=1.0)
+        stream.stop()                               # the chime takes over the speaker (the stream waits)
         gu.set_volume(VOLUME)
         self.notes = notes
         self.next_at = time.ticks_ms()
@@ -1757,23 +1991,52 @@ def set_volume(v):
 
 # ---------------------------------------------------------------- the Pi's speaker (sound streamed over Wi-Fi)
 
+where = [""]            # what the main loop is busy with (reported with the speaker's longest wait)
+
+
 class Stream:
-    """The Pi sends its sound here (TCP port 4243: raw 16-bit mono at 22050 Hz, from speaker/unicorn_speaker.py)
-    whenever something is playing. Needs the firmware with gu.stream_write (see ~/unicorn-firmware); on the stock
-    firmware this does nothing."""
+    """The Pi's speaker: it sends its sound here (TCP port 4243: raw 16-bit mono at 22050 Hz, from
+    speaker/unicorn_speaker.py) whenever something is playing, already at the right volume.
+
+    Works on the stock firmware. The sound buffer (audioring.py, grabbed at start-up) is played endlessly by the
+    Unicorn's own audio DMA in hardware ring mode: it wraps around the buffer by itself, so the sound keeps going
+    while the animation draws. The main loop tops it up every frame (and around scene changes), and clears what
+    has already been played, so if Wi-Fi falls behind for a moment it's a short silence rather than an echo.
+    (Not from a machine.Timer: on MicroPython 1.21 a Timer callback alongside Wi-Fi froze the Pico W.)"""
     PORT = 4243
-    CUSHION = 3300          # bytes (75 ms) gathered before starting, so Wi-Fi hiccups don't make gaps
-    MAX_WAITING = 9000      # samples (0.4 s): if it gets this far behind, skip ahead to stay in sync
+    DMA = 0x50000000
+    ENDLESS = 0x7ffffffe    # bytes: the transfer we start is "13 hours long" and wraps around the ring
+    LEAD = 4000             # bytes (90 ms) queued ahead when starting, or after Wi-Fi falls behind
+    SLACK = 512             # bytes never filled, so new sound can't overwrite what's about to play
 
     def __init__(self):
-        self.ok = hasattr(gu, "stream_write")
+        import audioring
+        self.ok = audioring.raw is not None
         self.server = self.conn = None
-        self.buf = bytearray(4096)
-        self.mv = memoryview(self.buf)
-        self.held = 0           # bytes in buf not yet taken by the speaker
-        self.at = 0
-        self.started = False
+        self.playing = False
         self.heard = 0          # ticks_ms when audio last arrived
+        self.underruns = 0
+        self.drops = 0          # bits of sound skipped for arriving too far ahead
+        self.gap = self.maxgap = 0  # longest wait between top-ups (ms)
+        self.lowest = 99999     # least sound queued at a top-up (bytes)
+        self.ch = None          # the audio DMA channel (found the first time we play)
+        self.pumping = False
+        self.underruns = self.drops = self.gap = self.maxgap = 0
+        self.gapat = ""
+        self.lowest = 99999
+        if not self.ok:
+            return
+        import uctypes
+        raw, size = audioring.raw, audioring.SIZE
+        addr = uctypes.addressof(raw)
+        self.base = (addr + size - 1) & ~(size - 1)
+        off = self.base - addr
+        mv = memoryview(raw)
+        self.size = size
+        self.ring = mv[off:off + size]
+        spare = mv[:off] if off >= size - off else mv[off + size:]     # the other half of the allocation
+        self.rx = spare[:4096]
+        self.zeros = memoryview(bytes(256))
 
     def close(self):
         if self.conn:
@@ -1781,9 +2044,107 @@ class Stream:
                 self.conn.close()
             except OSError:
                 pass
-        self.conn, self.held, self.started = None, 0, False
-        if self.ok:
+        self.conn = None
+        self.stop()
+
+    def stop(self):
+        """Stop the sound and put the DMA back to normal (the chimes need it without the ring)."""
+        if self.playing:
+            import machine
             gu.stop_playing()
+            ctrl = self.DMA + self.ch * 0x40 + 0x10
+            machine.mem32[ctrl] = machine.mem32[ctrl] & ~(0xf << 6) & 0x1fffffff
+            self.playing = False
+
+    def start(self):
+        global wdt
+        import machine, uctypes, audioring
+        if wdt is None:
+            wdt = machine.WDT(timeout=8000)
+        self.clear(0, self.size)
+        gu.play_sample(uctypes.bytearray_at(self.base, self.ENDLESS))
+        if self.ch is None:
+            for c in range(12):
+                if self.base <= machine.mem32[self.DMA + c * 0x40] < self.base + self.size:
+                    self.ch = c
+                    break
+            if self.ch is None:
+                gu.stop_playing()
+                self.ok = False
+                return
+        ctrl = self.DMA + self.ch * 0x40 + 0x10
+        machine.mem32[ctrl] = (machine.mem32[ctrl] & ~(0x1f << 6) & 0x1fffffff) | (audioring.BITS << 6)
+        self.count = self.DMA + self.ch * 0x40 + 8
+        self.cleared = 0        # bytes played and since zeroed (counted from the start)
+        self.w = self.LEAD      # where the next sound goes (bytes from the start)
+        self.got = 0            # bytes received: w and got must stay both even or both odd, or every sample
+                                # would be read from the wrong half (loud static)
+        self.underruns = self.drops = self.gap = self.maxgap = 0
+        self.gapat = ""
+        self.lowest = 99999
+        self.playing = True
+
+    def clear(self, frm, to):
+        """Zero the ring from byte frm up to byte to (counted from the start, so they wrap)."""
+        while frm < to:
+            i = frm % self.size
+            n = min(to - frm, self.size - i, len(self.zeros))
+            self.ring[i:i + n] = self.zeros[:n]
+            frm += n
+
+    def pump(self, _=None):
+        if not self.playing or self.pumping or not self.conn:
+            return
+        self.pumping = True
+        mem32[PUMPS] = (mem32[PUMPS] + 1) & 0xffffff
+        mem32[PUMP_AT] = 20
+        try:
+            import machine
+            played = (self.ENDLESS // 2 - machine.mem32[self.count]) * 2
+            if played - self.cleared > self.size:
+                self.cleared = played - self.size
+            self.clear(self.cleared, played)
+            self.cleared = played
+            mem32[PUMP_AT] = 21
+            now = time.ticks_ms()
+            if self.gap and time.ticks_diff(now, self.gap) > self.maxgap:
+                self.maxgap = time.ticks_diff(now, self.gap)
+                self.gapat = where[0]
+            self.gap = now
+            self.lowest = min(self.lowest, self.w - played)
+            if self.w < played:                     # Wi-Fi fell behind: it played silence, start a fresh lead
+                self.w = played + self.LEAD
+                self.underruns += 1
+            for _ in range(4):
+                mem32[PUMP_AT] = 22
+                try:
+                    n = self.conn.readinto(self.rx)
+                except OSError:
+                    break
+                mem32[PUMP_AT] = 23
+                if n is None:
+                    break
+                if n == 0:                          # the Pi hung up: the sound has stopped
+                    self.heard = -1
+                    break
+                self.heard = time.ticks_ms()
+                if self.w + n - played > self.size - self.SLACK:
+                    self.drops += 1
+                    self.got += n
+                    continue                        # too far ahead (the Pi's clock runs a hair fast): skip this bit
+                if (self.w - self.got) & 1:
+                    self.w += 1                     # keep the bytes of each sample together
+                i, k = self.w % self.size, 0
+                while k < n:
+                    m = min(n - k, self.size - i)
+                    self.ring[i:i + m] = self.rx[k:k + m]
+                    k += m
+                    i = 0
+                self.w += n
+                self.got += n
+        finally:
+            self.pumping = False
+            mem32[PUMP_AT] = 24
 
     def poll(self):
         if not self.ok or not net.ip():
@@ -1803,47 +2164,27 @@ class Stream:
             c, _ = self.server.accept()             # a new stream replaces the old one
             self.close()
             c.setblocking(False)
+            try:
+                c.send(("VOL %d\n" % int(VOLUME * 100)).encode())     # the Pi scales the sound to our volume
+            except OSError:
+                pass
             self.conn, self.heard = c, time.ticks_ms()
         except OSError:
             pass
         if not self.conn:
             return
         if speaker.busy():                          # a chime is playing: let it finish, skip the stream meanwhile
+            self.stop()
             try:
-                while self.conn.readinto(self.buf):
+                while self.conn.readinto(self.rx):
                     self.heard = time.ticks_ms()
             except OSError:
                 pass
-            self.held, self.at, self.started = 0, 0, False
-            return
-        for _ in range(6):
-            if self.held:
-                if not self.started and self.at + self.held < self.CUSHION and self.at + self.held < len(self.buf):
-                    pass                            # still gathering the cushion
-                else:
-                    self.started = True
-                    n = gu.stream_write(self.mv[self.at:self.at + self.held])
-                    self.at += n
-                    self.held -= n
-                    if self.held:
-                        break                       # the speaker's buffer is full for now
-            if self.held == 0:
-                self.at = 0
-            try:
-                n = self.conn.readinto(self.mv[self.at + self.held:])
-            except OSError:
-                break                               # nothing more right now
-            if n is None:
-                break
-            if n == 0:                              # the Pi hung up: the sound has stopped
-                self.close()
-                return
-            self.heard = time.ticks_ms()
-            if self.started and gu.stream_level() > self.MAX_WAITING:
-                continue                            # running behind: drop this bit to catch up
-            self.held += n
-        if time.ticks_diff(time.ticks_ms(), self.heard) > 5000:
-            self.close()                            # nothing for 5 s: the Pi must have gone away
+        elif not self.playing:
+            self.start()
+        self.pump()
+        if self.heard == -1 or time.ticks_diff(time.ticks_ms(), self.heard) > 5000:
+            self.close()                            # hung up, or nothing for 5 s: the Pi must have gone away
 
 
 stream = Stream()
@@ -1857,13 +2198,13 @@ skip = [False]  # "N": on to the next scene, like the A button
 perf = {}       # how long each scene took to draw a frame last time it played (average, slowest ms): "P" reports them
 
 
-def handle_line(line):
-    """Run one command; returns a short reply (sent back over Wi-Fi)."""
+def handle_line(line, usb=False):
+    """Run one command; returns a short reply (sent back over Wi-Fi, or printed over USB)."""
     global custom_msg, BRIGHTNESS, date_override
     line = line.strip()
     if not line:
         return "OK"
-    if line[0] == "T":
+    if line[0] == "T" and line[:5] != "TIMER":
         try:
             y, m, d, h, mi, s, wd = [int(v) for v in line[1:].split()]
             import machine
@@ -1908,14 +2249,85 @@ def handle_line(line):
             return "ERR %r" % e
     elif line == "N":
         skip[0] = True
+    elif line[:4] == "CAT " and usb:                  # read one of the settings files (USB only), as base64
+        name = line[4:].strip()
+        if "/" in name or not (name.endswith(".json") or name.endswith(".txt")):
+            return "ERR not that file"
+        try:
+            import binascii
+            with open(name, "rb") as f:
+                return "OK " + binascii.b2a_base64(f.read()).decode().strip()
+        except OSError:
+            return "ERR no file " + name
+    elif line[:2] == "G ":
+        cls = find_scene(line[2:].strip())
+        if not cls:
+            return "ERR no scene called %s" % line[2:].strip()
+        goto[0] = cls
+        return "OK showing " + line[2:].strip()
+    elif line[:5] == "TIMER":
+        try:
+            secs, _, label = (line[5:].strip() + " ").partition(" ")
+            secs = int(float(secs))
+        except ValueError:
+            return "ERR TIMER seconds [name]"
+        if secs <= 0:
+            timer[0] = None
+            return "OK timer cancelled"
+        timer[0], timer[1] = time.ticks_add(time.ticks_ms(), secs * 1000), label.strip()
+        return "OK timer %d s" % secs
     elif line == "P":
         gc.collect()
         return " ".join("%s:%d/%d" % (k, v[0], v[1]) for k, v in sorted(perf.items())) + " | free %d" % gc.mem_free()
     elif line == "?":
-        return "brightness %d volume %d message %r season %s%s%s" % (
+        return "brightness %d volume %d message %r season %s%s%s%s online %s wifi %s" % (
             BRIGHTNESS * 100, VOLUME * 100, custom_msg, _season[0],
-            " pretend %s" % (date_override,) if date_override else "", " ERROR " + season_error if season_error else "")
+            " speaker %s underruns %d%s" % ("playing" if stream.playing else "ready" if stream.ok else "off",
+                                            stream.underruns, last_freeze())
+            + " drops %d maxgap %d at %s lowest %d" % (stream.drops, stream.maxgap, stream.gapat, stream.lowest),
+            " pretend %s" % (date_override,) if date_override else "",
+            "".join(" ERROR " + e for e in (season_error, mine_error, scene_error[0]) if e),
+            online_status(), net.ip() or "-")
     return "OK"
+
+
+def last_freeze():
+    import audioring
+    return " FROZE (restarted): main %d frames %d pumps %d pump %d" % tuple(audioring.crumbs) if audioring.froze else ""
+
+
+goto = [None]           # "G Name": the scene to show next
+scene_error = [""]      # the last scene that failed to start (a broken animation file, say): it's skipped
+
+
+def online_status():
+    m = sys.modules.get("online")
+    return m.status() if m else "-"
+
+
+def _online_needed():
+    if SETTINGS.get("place") or "utc_offset" in SETTINGS:
+        return True
+    try:
+        import os
+        os.stat("words.txt")
+        return True
+    except OSError:
+        return False                                # a Pi looks after all that: don't spend the memory
+
+
+ONLINE = _online_needed()
+
+
+def go_online():
+    """Between scenes: let online.py keep the clock and the weather up to date by itself, if it's needed."""
+    if not ONLINE or not net.ip():
+        return
+    try:
+        import online
+        online.tick(SETTINGS, wdt)
+    except Exception as e:
+        scene_error[0] = "online: %r" % e
 
 
 def check_usb():
@@ -1924,19 +2336,39 @@ def check_usb():
         import select
         _poll = select.poll()
         _poll.register(sys.stdin, select.POLLIN)
+    if wdt:
+        wdt.feed()
+    crumb(10)
     while _poll.poll(0):
         ch = sys.stdin.read(1)
         if ch == "\n":
-            handle_line(_buf)
+            print("@@", handle_line(_buf, True) or "OK")    # (Unicorn Studio reads the replies)
             _buf = ""
         elif len(_buf) < 200:
             _buf += ch
+    crumb(11)
     net.poll(handle_line)
+    crumb(12)
+    alarms()
+    check_timer()
     speaker.tick()
+    crumb(13)
     stream.poll()
+    crumb(14)
 
 
 # ---------------------------------------------------------------- main loop
+
+def asleep():
+    """In the screen's sleep hours (settings.json "sleep": ["23:00", "07:00"])?"""
+    hours = SETTINGS.get("sleep")
+    if not hours or not clock_synced():
+        return False
+    lt = time.localtime()
+    now = "%02d:%02d" % (lt[3], lt[4])
+    a, b = hours
+    return a <= now < b if a <= b else (now >= a or now < b)
+
 
 def level():
     """Daytime brightness, ramping up to EVENING_BRIGHTNESS through the evening and holding until morning."""
@@ -1968,20 +2400,39 @@ def run():
 
     playlist, built_for = [], None
     while True:
+        go_online()
         w = weather()
         key = (today(), w["t"] if w else None)
         if key != built_for:                        # a new day, new weather, or a "D" date to try: a fresh round
             built_for = key
             playlist, idx = build_playlist(), 0
-        if jump is not None:
+            stream.pump()
+        if alert[0]:
+            cls = Alert
+        elif timer[0] is not None:
+            cls = Timer
+        elif goto[0]:
+            cls, goto[0] = goto[0], None
+        elif jump is not None:
             cls, jump = jump, None
         else:
             cls = playlist[idx % len(playlist)]
             idx += 1
             if hasattr(cls, "available") and not cls.available():
                 continue
+        stream.pump()                               # (the speaker's buffer only lasts 186 ms: top it up often)
         gc.collect()
-        scene = cls()
+        stream.pump()
+        where[0] = cls.__name__ + " start"
+        try:
+            scene = cls()
+        except Exception as e:                      # a broken scene of your own: skip it, say so in "?"
+            scene_error[0] = "%s: %r" % (name_of(cls), e)
+            if cls in playlist:
+                playlist = [c for c in playlist if c is not cls] or [Clock]
+            continue
+        where[0] = cls.__name__
+        stream.pump()
         start = last = time.ticks_ms()
         worst = total = frames = 0
         while True:
@@ -1993,9 +2444,15 @@ def run():
 
             if pressed(GalacticUnicorn.SWITCH_A) or skip[0]:
                 hold = skip[0] = False
+                if cls is Timer:
+                    timer[0] = None                 # A on the timer cancels it
                 break
-            if pressed(GalacticUnicorn.SWITCH_B) and Forecast.available():
-                jump = Forecast
+            if (alert[0] and cls is not Alert) or (timer[0] is not None and cls not in (Timer, Alert)) or goto[0]:
+                break
+            if pressed(GalacticUnicorn.SWITCH_B):
+                b = getattr(mine(), "BUTTON_B", None) or Forecast    # (my_scenes.py can choose its own)
+                if not hasattr(b, "available") or b.available():
+                    jump = b
                 break
             if pressed(GalacticUnicorn.SWITCH_C) and clock_synced():
                 jump = Clock
@@ -2024,17 +2481,42 @@ def run():
             gfx.set_pen(BLACK)
             gfx.clear()
             drawn = time.ticks_ms()
+            crumb(2)
             scene.draw(t, dt)
+            crumb(3)
             took = time.ticks_diff(time.ticks_ms(), drawn)
             worst, total, frames = max(worst, took), total + took, frames + 1
 
             b = level()
             fade = 1 if hold else max(0, min(1, t / FADE, (scene.dur - t) / FADE))
-            gu.set_brightness(b * fade if screen_on else 0)
+            dark = not screen_on or (asleep() and cls not in (Alert, Timer))     # sleep hours: screen off
+            gu.set_brightness(0 if dark else b * fade)
+            crumb(4)
             gu.update(gfx)
+            crumb(5)
+            mem32[FRAMES] = (mem32[FRAMES] + 1) & 0xffffff
             time.sleep_ms(max(0, 33 - time.ticks_diff(time.ticks_ms(), now)))
+            crumb(6)
         if frames:
             perf[cls.__name__] = (total // frames, worst)
+
+
+def _roomy():
+    """MicroPython only makes a dict bigger once it's completely full, and every look-up of a built-in (min, max, int,
+    range...) first searches the module's globals all the way to an empty slot: in a nearly full table, that's most
+    of it. So pad the globals just past a size step (MicroPython's sizes, py/map.c), leaving a quarter of the table
+    free. It made the campfire draw 40% faster."""
+    g = globals()
+    for size in (17, 23, 29, 37, 47, 59, 73, 97, 127, 167, 223, 293, 389, 521, 691, 919):
+        if size >= len(g):
+            i = 0
+            while len(g) > size * 0.8 and len(g) <= size:
+                g["_pad%d" % i] = None
+                i += 1
+            return
+
+
+_roomy()
 
 
 if __name__ == "__main__":

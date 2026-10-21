@@ -12,6 +12,8 @@
   unicorn.py pretend 2026 12 24  show the scenes for another day of the year ("pretend" alone goes back)
   unicorn.py perf              how fast each scene draws, and free memory
   unicorn.py next              skip to the next scene
+  unicorn.py show NAME         show a scene now (e.g. Campfire)
+  unicorn.py timer MIN [NAME]  a kitchen timer on the screen (minutes; 0 cancels)
   unicorn.py push FILE [NAME]  copy a file onto the Unicorn over Wi-Fi (e.g. carousel.py), then `reset`
   unicorn.py reset             restart it
   unicorn.py find              look for it on the network
@@ -21,7 +23,6 @@ import glob
 import ipaddress
 import os
 import socket
-import subprocess
 import sys
 import time
 
@@ -46,7 +47,19 @@ def remember(host):
         f.write(host)
 
 
+def key():
+    """The Unicorn's KEY from secrets.py, if it has one: PUT, RESET and X need it."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from secrets import KEY
+        return KEY
+    except ImportError:
+        return ""
+
+
 def talk(host, line, data=None, timeout=5):
+    if key() and (line.startswith("PUT ") or line == "RESET" or line[:1] == "X"):
+        line = "KEY %s %s" % (key(), line)
     with socket.create_connection((host, PORT), timeout=timeout) as s:
         s.sendall((line + "\n").encode())
         if data:
@@ -56,8 +69,10 @@ def talk(host, line, data=None, timeout=5):
 
 def find():
     """Ask every address on our network whether it's the Unicorn."""
-    out = subprocess.run(["ip", "-4", "-o", "addr", "show", "wlan0"], capture_output=True, text=True).stdout.split()
-    net = ipaddress.ip_interface(out[out.index("inet") + 1]).network
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:     # (sends nothing: just picks our address)
+        s.connect(("192.0.2.1", 9))
+        net = ipaddress.ip_interface(s.getsockname()[0] + "/24").network
+
     def probe(ip):
         try:
             return str(ip) if talk(str(ip), "PING", timeout=0.6).startswith("PONG") else None
@@ -162,6 +177,10 @@ def main():
         print(wifi(" ".join(["D"] + rest)) or "Not reachable over Wi-Fi.")
     elif cmd == "next":
         print(wifi("N") or "Not reachable over Wi-Fi.")
+    elif cmd == "show" and rest:
+        print(wifi("G " + rest[0]) or "Not reachable over Wi-Fi.")
+    elif cmd == "timer" and rest:
+        print(wifi("TIMER %d %s" % (float(rest[0]) * 60, " ".join(rest[1:]))) or "Not reachable over Wi-Fi.")
     elif cmd == "perf":
         print(wifi("P") or "Not reachable over Wi-Fi.")
     elif cmd == "push" and rest:

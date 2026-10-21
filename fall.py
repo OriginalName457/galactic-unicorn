@@ -5,6 +5,8 @@ import random
 
 from carousel import gfx, W, H, pen, px, Runs, tiny_text, Stars, Latte, during, around
 
+int, min, range, len, enumerate = int, min, range, len, enumerate     # (quicker to find as globals: see carousel.py)
+
 
 class Orchard:
     """Apple picking: a tree heavy with apples, one dropping now and then into the basket."""

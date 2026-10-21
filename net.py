@@ -6,6 +6,10 @@
 #   PUT <name> <bytes>   then exactly <bytes> of file data: saves the file (used to update the carousel)
 #   RESET                restart the Unicorn
 # Every command gets a one-line reply. Nothing here blocks the animation for long.
+#
+# If secrets.py has a KEY (Unicorn Studio makes one), the commands that change files or run code (PUT, RESET, X)
+# only work with it in front: "KEY <key> PUT ...". Anyone else on the Wi-Fi can still change the scene or the
+# message, but can't change the Unicorn's code or read its Wi-Fi password.
 
 import network
 import socket
@@ -18,12 +22,17 @@ try:
     from secrets import WIFI
 except ImportError:
     WIFI = []
+try:
+    from secrets import KEY
+except ImportError:
+    KEY = ""
 
 wlan = None
 server = None
 _tried = 0
 _which = 0
 reset_requested = False
+_pending = [None, b"", 0]  # a command connection still arriving: [socket, line so far, ticks_ms when accepted]
 
 
 def start():
@@ -73,16 +82,6 @@ def _listen():
     server = s
 
 
-def _read_line(c):
-    buf = b""
-    while not buf.endswith(b"\n") and len(buf) < 600:
-        ch = c.recv(1)
-        if not ch:
-            break
-        buf += ch
-    return buf.decode().strip()
-
-
 def _save(c, name, size):
     if "/" in name or not name or size > 200000:
         return "ERR bad file"
@@ -126,14 +125,36 @@ def poll(handle_line):
             _listen()
         except OSError:
             return
-    try:
-        c, _ = server.accept()
+    if _pending[0] is None:
+        try:
+            c, _ = server.accept()
+        except OSError:
+            return                                  # nobody knocking
+        c.setblocking(False)
+        _pending[:] = [c, b"", time.ticks_ms()]
+    c = _pending[0]
+    try:                                            # gather the command line without waiting for it, so the
+        while not _pending[1].endswith(b"\n") and len(_pending[1]) < 600:     # animation (and sound) keep going
+            ch = c.recv(1)
+            if not ch:
+                break
+            _pending[1] += ch
     except OSError:
-        return                                      # nobody knocking
+        if time.ticks_diff(time.ticks_ms(), _pending[2]) < 5000:
+            return                                  # the rest hasn't arrived yet: carry on, look again next time
+    raw = _pending[1]
+    _pending[:] = [None, b"", 0]
     try:
         c.settimeout(5)
-        line = _read_line(c)
-        if line == "PING":
+        line = raw.decode().strip()
+        trusted = not KEY
+        if line.startswith("KEY "):
+            _, key, line = (line + " ").split(" ", 2)
+            line = line.strip()
+            trusted = trusted or key == KEY
+        if not trusted and (line.startswith("PUT ") or line == "RESET" or line[:1] == "X"):
+            reply = "ERR this needs the key from secrets.py"
+        elif line == "PING":
             reply = "PONG " + ip()
         elif line.startswith("PUT "):
             _, name, size = line.split()
@@ -154,4 +175,5 @@ def poll(handle_line):
     if reset_requested:
         time.sleep_ms(200)
         import machine
+        machine.mem32[0x4005800c] = 99             # a restart on purpose, not a freeze (see audioring.py)
         machine.reset()

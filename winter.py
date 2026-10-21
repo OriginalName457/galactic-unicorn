@@ -5,6 +5,8 @@ import random
 from carousel import gfx, W, H, pen, px, Runs, text, text_width, tiny_text, tiny_width, wave, Stars, Latte, TINY_HEART, \
     during, around
 
+int, min, max, range, len = int, min, max, range, len     # (quicker to find as globals: see carousel.py)
+
 
 class Snowfall:
     """Snow drifting down; scenes draw it in front of (or behind) everything else."""

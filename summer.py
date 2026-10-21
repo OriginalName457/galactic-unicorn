@@ -4,6 +4,8 @@ import random
 
 from carousel import gfx, W, H, pen, px, text, text_width, tiny_text, tiny_width, Stars, Latte, during, around
 
+int, min, max, abs, range, len, round, enumerate = int, min, max, abs, range, len, round, enumerate     # (quicker to find as globals: see carousel.py)
+
 
 class Fireflies:
     """A warm summer night: tall grass swaying, fireflies blinking on and off."""

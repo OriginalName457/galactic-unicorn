@@ -1,12 +1,10 @@
 secrets.py
 build/
 __pycache__/
-*.uf2
 weather/config.json
 weather/weather.json
 kotoba/kotoba.json
 kotoba/progress.json
-firmware/toolchain/
-firmware/micropython/
-firmware/pico-sdk/
-firmware/pimoroni-pico/
+studio/board_files/
+my_scenes.py
+settings.json

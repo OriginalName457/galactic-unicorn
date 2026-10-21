@@ -1,0 +1,96 @@
+# Builds Unicorn Studio for Windows, macOS and Linux. On a version tag (v1.0.0...) the apps are attached to a
+# GitHub release, ready to download; on other pushes they're kept as the run's artifacts.
+name: Unicorn Studio
+
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    paths: ["studio/**", "*.py", ".github/workflows/studio.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  board:
+    name: Unicorn's files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install mpy-cross==1.21.0
+      - run: python studio/build_board.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: board_files
+          path: studio/board_files
+
+  app:
+    name: App (${{ matrix.os }})
+    needs: board
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            out: Unicorn-Studio-Windows
+          - os: macos-latest
+            out: Unicorn-Studio-Mac
+          - os: ubuntu-latest
+            out: Unicorn-Studio-Linux
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          name: board_files
+          path: studio/board_files
+      - run: pip install pyserial pyinstaller
+      - name: Build
+        run: |
+          SEP=":"; [ "$RUNNER_OS" = "Windows" ] && SEP=";"
+          MODE="--onefile"; [ "$RUNNER_OS" = "macOS" ] && MODE="--onedir"
+          pyinstaller --noconfirm $MODE --windowed --name "Unicorn Studio" \
+            --add-data "studio/catalog.json${SEP}." --add-data "studio/previews${SEP}previews" \
+            --add-data "studio/board_files${SEP}board_files" studio/unicorn_studio.py
+      - name: Package
+        run: |
+          mkdir out
+          case "$RUNNER_OS" in
+            Windows) cp "dist/Unicorn Studio.exe" "out/Unicorn Studio.exe"; (cd out && 7z a ../${{ matrix.out }}.zip .) ;;
+            macOS)   (cd dist && ditto -c -k --keepParent "Unicorn Studio.app" ../${{ matrix.out }}.zip) ;;
+            Linux)   cp "dist/Unicorn Studio" out/unicorn-studio; chmod +x out/unicorn-studio; tar -czf ${{ matrix.out }}.tar.gz -C out . ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out }}
+          path: ${{ matrix.out }}.*
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: apps
+          pattern: Unicorn-Studio-*
+          merge-multiple: true
+      - name: Attach the apps to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --title "Unicorn Studio $GITHUB_REF_NAME" \
+              --notes "Download the one for your computer, unzip it, and double-click Unicorn Studio. See the README for the first-time steps."
+          gh release upload "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --clobber apps/*
