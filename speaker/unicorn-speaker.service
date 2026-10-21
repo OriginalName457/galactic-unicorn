@@ -1,0 +1,11 @@
+[Unit]
+Description=Use the Galactic Unicorn as the Pi's speaker (over Wi-Fi)
+After=pulseaudio.service
+
+[Service]
+ExecStart=/usr/bin/python3 %h/galactic-unicorn/speaker/unicorn_speaker.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

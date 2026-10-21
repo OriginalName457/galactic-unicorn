@@ -1,0 +1,8 @@
+[Unit]
+Description=Send the local weather to the Galactic Unicorn
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/usr/bin/python3 /home/pi/galactic-unicorn/weather/weather.py

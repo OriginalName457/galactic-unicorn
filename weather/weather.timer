@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh the Galactic Unicorn's weather every 20 minutes
+
+[Timer]
+OnBootSec=90s
+OnCalendar=*:0/20
+Persistent=true
+
+[Install]
+WantedBy=timers.target

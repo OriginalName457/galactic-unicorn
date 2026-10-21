@@ -1,0 +1,12 @@
+[Unit]
+Description=Keep the Galactic Unicorn's clock in sync over USB
+After=time-sync.target
+
+[Service]
+User=pi
+ExecStart=/usr/bin/python3 /home/pi/galactic-unicorn/unicorn.py sync
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
