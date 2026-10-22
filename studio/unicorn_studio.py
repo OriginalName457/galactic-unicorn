@@ -62,10 +62,20 @@ def board_files():
     return out
 
 
+def open_url(url, timeout=15):
+    """urlopen, with certifi's certificates when it's there (the Mac app has none of its own)."""
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        ctx = None
+    return urllib.request.urlopen(url, timeout=timeout, context=ctx)
+
+
 def fetch_json(url):
     """GET some JSON, over https (falling back to http if this computer's certificates are missing)."""
     try:
-        with urllib.request.urlopen(url, timeout=15) as r:
+        with open_url(url) as r:
             return json.load(r)
     except (ssl.SSLError, urllib.error.URLError) as e:
         if "CERTIFICATE" not in str(e).upper() and not isinstance(e, ssl.SSLError):
@@ -311,21 +321,27 @@ class Studio(tk.Tk):
             except Exception as e:
                 last = e
                 continue
-            reply = b.command("?", 2.5) or b.command("?", 2.5)
+            reply = None
+            end = time.time() + 15          # a carousel that's just started can be busy for a bit (Wi-Fi, weather)
+            while not reply and not b.repl and time.time() < end:
+                reply = b.command("?", 2.5)
             if reply:                                   # the carousel is running and answering
                 got = {"mode": "live", "board": b, "status": reply}
-                raw = b.cat("settings.json")
-                got["settings"] = json.loads(raw) if raw else None
-                got["arts"] = {}
-                for e in (got["settings"] or {}).get("art", []):
-                    data = b.cat("art_%s.json" % e["id"])
-                    if data:
-                        got["arts"][e["id"]] = json.loads(data)
-                for name in ("brightness.txt", "volume.txt"):
-                    data = b.cat(name)
-                    if data:
-                        got[name] = data
-                return got
+                try:
+                    raw = b.cat("settings.json")
+                    got["settings"] = json.loads(raw) if raw else None
+                    got["arts"] = {}
+                    for e in (got["settings"] or {}).get("art", []):
+                        data = b.cat("art_%s.json" % e["id"])
+                        if data:
+                            got["arts"][e["id"]] = json.loads(data)
+                    for name in ("brightness.txt", "volume.txt"):
+                        data = b.cat(name)
+                        if data:
+                            got[name] = data
+                    return got
+                except (unicorn.BoardError, ValueError):
+                    pass                                # (a big animation file, say): read them the other way
             try:                                        # not answering: a new Unicorn, or a different program
                 b.enter_raw()
                 version, has_gu = b.info()
@@ -345,6 +361,11 @@ class Studio(tk.Tk):
                 if data:
                     got["arts"][e["id"]] = json.loads(data)
             return got
+        if last and "ermission" in str(last) and sys.platform.startswith("linux"):
+            raise unicorn.BoardError("This computer won't let Unicorn Studio use the USB port. In a terminal, run\n\n"
+                                     "    sudo usermod -aG dialout $USER\n\nthen log out and back in, and try again.")
+        if last and "ermission" in str(last):
+            raise unicorn.BoardError("The Unicorn's USB port is busy. Is another program (Thonny, say) using it?")
         raise last or unicorn.BoardError("couldn't open the Unicorn's USB port")
 
     def _connected(self, got):
@@ -396,7 +417,12 @@ class Studio(tk.Tk):
         path = os.path.join(tempfile.gettempdir(), os.path.basename(unicorn.FIRMWARE_URL))
         if not os.path.exists(path) or os.path.getsize(path) < 500000:
             self.ui(self.progress_text.config, {"text": "Downloading firmware"})
-            urllib.request.urlretrieve(unicorn.FIRMWARE_URL, path + ".part")
+            with open_url(unicorn.FIRMWARE_URL, 60) as r, open(path + ".part", "wb") as f:
+                while True:
+                    chunk = r.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
             os.replace(path + ".part", path)
         drive = unicorn.find_uf2_drive()
         if not drive and self.board:
@@ -421,9 +447,22 @@ class Studio(tk.Tk):
             else:
                 raise unicorn.BoardError("The Unicorn didn't show up as an RPI-RP2 drive.")
         time.sleep(1.5)                                  # let the drive settle (mounting)
-        with open(path, "rb") as src, open(os.path.join(drive, "firmware.uf2"), "wb") as dst:
-            dst.write(src.read())
-        for _ in range(40):                              # it restarts into the new firmware by itself
+        with open(path, "rb") as src:
+            data = src.read()
+        dst = open(os.path.join(drive, "firmware.uf2"), "wb")
+        try:
+            dst.write(data)
+            dst.flush()
+            os.fsync(dst.fileno())
+        except OSError:
+            if dst.tell() < len(data):      # it restarts as soon as the last block lands, so an error after
+                raise                       # that is fine; one before it isn't
+        finally:
+            try:
+                dst.close()
+            except OSError:
+                pass
+        for _ in range(80):                              # it restarts into the new firmware by itself
             time.sleep(0.5)
             if unicorn.find_ports():
                 time.sleep(2)
@@ -1619,19 +1658,23 @@ class SetupTab(ttk.Frame):
         return self.ssid.get().strip(), self.psk.get()
 
     def use_mine(self):
-        ssid = wifi_info.current_network()
+        self.wifi_note.config(text="Looking at this computer's Wi-Fi...")
+
+        def run():
+            ssid = wifi_info.current_network()
+            self.app.ui(self.got_network, ssid)
+            if ssid:
+                self.app.ui(self.got_password, ssid, wifi_info.saved_password(ssid))
+        threading.Thread(target=run, daemon=True).start()
+
+    def got_network(self, ssid):
         if not ssid:
+            self.wifi_note.config(text="")
             messagebox.showinfo("Wi-Fi", "Couldn't tell which Wi-Fi this computer is on (it may be on a cable). "
                                          "Please type the network name and password in.")
             return
         self.ssid.set(ssid)
         self.wifi_note.config(text="Reading the saved password for \"%s\"... (your computer may ask you first)" % ssid)
-        self.update_idletasks()
-
-        def run():
-            psk = wifi_info.saved_password(ssid)
-            self.app.ui(self.got_password, ssid, psk)
-        threading.Thread(target=run, daemon=True).start()
 
     def got_password(self, ssid, psk):
         if psk:

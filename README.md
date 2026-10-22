@@ -4,7 +4,14 @@ A carousel of pixel-art scenes for the [Pimoroni Galactic Unicorn](https://shop.
 
 It comes with **Unicorn Studio**, a double-click app for Windows, Mac and Linux that sets the whole thing up and lets you choose what it shows. No programming needed.
 
-![Unicorn Studio](docs/studio.png)
+![Mt Fuji at sunset with the shinkansen going by, on the Unicorn's LEDs](docs/fuji.gif)
+
+| | | |
+|:-:|:-:|:-:|
+| ![Campfire](docs/scenes/Campfire.gif) | ![Snowy cabin](docs/scenes/Cabin.gif) | ![Cherry blossoms](docs/scenes/Sakura.gif) |
+| ![Jack-o'-lanterns](docs/scenes/Pumpkins.gif) | ![Northern lights](docs/scenes/Aurora.gif) | ![Fireflies](docs/scenes/Fireflies.gif) |
+
+**[See all the scenes →](docs/SCENES.md)**
 
 ## Getting started (no programming)
 
@@ -23,7 +30,7 @@ The Unicorn needs **2.4 GHz Wi-Fi**, which most home routers have.
 
 ## What's in it
 
-- **About 50 scenes through the year.** Each one only shows in its season:
+- **About 50 scenes through the year** ([see them all](docs/SCENES.md)). Each one only shows in its season:
   - October: Halloween and autumn in Japan (the torii gates of Fushimi Inari, Kinkaku-ji, Mt Fuji with the shinkansen).
   - Holidays: Thanksgiving, Christmas, New Year fireworks, Valentine's, St. Patrick's, Easter, Earth Day, Cinco de Mayo, Mother's and Father's Day, the 4th of July, back to school, and more.
 - **Countdowns for the big holidays** (Halloween, Thanksgiving, Christmas, New Year, Valentine's, Easter, the 4th of July), and greetings on the smaller days.
@@ -39,6 +46,8 @@ The Unicorn needs **2.4 GHz Wi-Fi**, which most home routers have.
 **Buttons:** A = next scene, B = weather, C = clock, D = hold this scene, LUX +/- = brightness, SLEEP = screen on/off, VOL +/- = volume. On a kitchen timer, A cancels it.
 
 ## Unicorn Studio
+
+![Unicorn Studio](docs/studio.png)
 
 - **Scenes:** every scene with a moving preview and the dates it shows. Untick the ones you don't want. With the Unicorn plugged in and running, **Show it now** puts a scene on the screen straight away.
 - **My animations:** draw on a 53×11 grid, add more pictures to make it move, set the speed, add words to scroll across, and choose the dates it shows. **From a picture...** turns a PNG or GIF (even an animated one) into an animation.
@@ -115,7 +124,7 @@ You can try a scene without the board. The simulator saves frames as a PNG:
 python3 sim.py carousel.py winter.Cabin 1,4,7 out.png "(2026,12,20,19,0,0)"
 ```
 
-To add new scenes to Unicorn Studio's library, run `python3 tools/make_catalog.py` (it draws the previews with the simulator).
+To add new scenes to Unicorn Studio's library, run `python3 tools/make_catalog.py`. It draws the previews with the simulator, and the gallery in `docs/`.
 
 ### How it fits together
 

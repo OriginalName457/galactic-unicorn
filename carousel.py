@@ -2342,7 +2342,11 @@ def check_usb():
     while _poll.poll(0):
         ch = sys.stdin.read(1)
         if ch == "\n":
-            print("@@", handle_line(_buf, True) or "OK")    # (Unicorn Studio reads the replies)
+            try:
+                reply = handle_line(_buf, True) or "OK"
+            except Exception as e:                  # (a bad command mustn't stop the carousel)
+                reply = "ERR %r" % e
+            print("@@", reply)                      # (Unicorn Studio reads the replies)
             _buf = ""
         elif len(_buf) < 200:
             _buf += ch
@@ -2390,6 +2394,7 @@ def run():
     hold = False
     screen_on = True
     jump = None
+    skipped = 0                                 # scenes in a row with nothing to show
     prev = {}
 
     def pressed(btn):
@@ -2419,7 +2424,12 @@ def run():
             cls = playlist[idx % len(playlist)]
             idx += 1
             if hasattr(cls, "available") and not cls.available():
+                skipped += 1
+                if skipped > len(playlist):         # nothing to show right now (no clock or Wi-Fi yet, say)
+                    check_usb()
+                    time.sleep_ms(100)
                 continue
+        skipped = 0
         stream.pump()                               # (the speaker's buffer only lasts 186 ms: top it up often)
         gc.collect()
         stream.pump()
@@ -2482,7 +2492,13 @@ def run():
             gfx.clear()
             drawn = time.ticks_ms()
             crumb(2)
-            scene.draw(t, dt)
+            try:
+                scene.draw(t, dt)
+            except Exception as e:                  # a broken scene of your own: skip it, say so in "?"
+                scene_error[0] = "%s: %r" % (name_of(cls), e)
+                if cls in playlist:
+                    playlist = [c for c in playlist if c is not cls] or [Clock]
+                break
             crumb(3)
             took = time.ticks_diff(time.ticks_ms(), drawn)
             worst, total, frames = max(worst, took), total + took, frames + 1

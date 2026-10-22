@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Makes Unicorn Studio's library: studio/catalog.json (every scene, when it shows, what it is; the tunes; the
-countdown pictures) and an animated preview of each scene in studio/previews/, drawn with the simulator.
+countdown pictures) and an animated preview of each scene in studio/previews/, drawn with the simulator. Also the
+gallery to look through on GitHub: docs/SCENES.md, with a bigger, smoother animation of each scene in docs/scenes/.
 
   python3 tools/make_catalog.py          (needs Pillow: pip install pillow)
 
@@ -17,6 +18,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "studio")
 sys.path.insert(0, ROOT)
 import sim  # noqa: E402
+from PIL import Image  # noqa: E402
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 SEASONS = {12: "Winter", 1: "Winter", 2: "Winter", 3: "Spring", 4: "Spring", 5: "Spring", 6: "Summer", 7: "Summer",
@@ -83,6 +85,44 @@ def gif(ns, name, dur, when, path):
     pics[0].save(path, save_all=True, append_images=pics[1:], duration=int(span / n * 1000), loop=0)
 
 
+def big_gif(ns, name, dur, when, path, start=1, n=36, fps=6, size=8):
+    """The gallery's animation: round LEDs, a few seconds of the scene at 6 frames a second."""
+    step = min(1 / fps, max(dur - 2, 1) / n)
+    times = [start + step * k for k in range(n)]
+    shots, _ = sim.frames(ns, name, times, when)
+    pics = [sim.picture(fr, size=size, gap=size // 8, dots=True) for fr in shots]
+    # one palette for every frame, so each frame only stores the LEDs that changed
+    sheet = Image.new("RGB", (pics[0].width, pics[0].height * n))
+    for k, p in enumerate(pics):
+        sheet.paste(p, (0, k * p.height))
+    pal = sheet.quantize(255, method=0)                 # median cut; index 255 stays free for "unchanged"
+    idx = [p.quantize(palette=pal, dither=0) for p in pics]
+    out, prev = [idx[0]], idx[0].tobytes()
+    for im in idx[1:]:
+        now = im.tobytes()
+        keep = Image.frombytes("P", im.size, bytes(255 if a == b else a for a, b in zip(now, prev)))
+        keep.putpalette(im.getpalette())
+        out.append(keep)
+        prev = now
+    out[0].save(path, save_all=True, append_images=out[1:], duration=int(step * 1000), loop=0, transparency=255,
+                disposal=1, optimize=False)                  # optimize would renumber the colours
+
+
+def gallery(scenes, order):
+    """docs/SCENES.md: every scene by category, with its animation, when it shows and what it is."""
+    lines = ["# The scenes", "",
+             "Everything the Unicorn can show, drawn by the simulator. Each scene comes round only in its own part "
+             "of the year; untick any you don't want in Unicorn Studio's **Scenes** tab.", "",
+             " · ".join("[%s](#%s)" % (c, c.lower().replace(" & ", "--").replace(" ", "-")) for c in order), ""]
+    for cat in order:
+        lines += ["## " + cat, ""]
+        for s in (s for s in scenes if s["category"] == cat):
+            lines += ["### " + s["title"], "", "![%s](scenes/%s.gif)" % (s["title"], s["name"]), "",
+                      "**%s.** %s" % (s["when"], s["about"]), ""]
+    with open(os.path.join(ROOT, "docs", "SCENES.md"), "w") as f:
+        f.write("\n".join(lines))
+
+
 def main():
     work = tempfile.mkdtemp()
     os.chdir(work)                          # the scenes read weather.json and kotoba.json from where they run
@@ -102,6 +142,9 @@ def main():
     previews = os.path.join(OUT, "previews")
     shutil.rmtree(previews, ignore_errors=True)
     os.makedirs(previews)
+    big = os.path.join(ROOT, "docs", "scenes")
+    shutil.rmtree(big, ignore_errors=True)
+    os.makedirs(big)
     scenes = []
     for cls, (mod_name, entries) in groups.items():
         text, spans, length = windows(entries)
@@ -120,6 +163,7 @@ def main():
         ns["date_override"] = day
         sc = (getattr(__import__(mod_name), cls.__name__) if mod_name else cls)()
         gif(ns, ref, sc.dur, day, os.path.join(previews, cls.__name__ + ".gif"))
+        big_gif(ns, ref, sc.dur, day, os.path.join(big, cls.__name__ + ".gif"))
         print("%-12s %-9s %s" % (cls.__name__, category, text))
     for name, (title, about) in EVERYDAY.items():
         day = (2026, 10, 24) if name != "Reminder" else (2027, 4, 29)
@@ -128,10 +172,12 @@ def main():
             json.dump(WEATHER, f)
         ns["time"].localtime = lambda *a, d=day: (d[0], d[1], d[2], 19, 0, 0, 5, 1)
         cat = "Weather & sky" if name in ("Outside", "Moon", "Forecast") else "Everyday"
-        scenes.append({"name": name, "title": title, "category": cat, "when": "All year", "about": about,
+        when = "Late April - mid June" if name == "Reminder" else "All year"
+        scenes.append({"name": name, "title": title, "category": cat, "when": when, "about": about,
                        "file": "carousel"})
         ns["date_override"] = day
         gif(ns, name, ns[name]().dur, day, os.path.join(previews, name + ".gif"))
+        big_gif(ns, name, ns[name]().dur, day, os.path.join(big, name + ".gif"))
         print("%-12s %-9s" % (name, cat))
 
     order = ["Everyday", "Weather & sky", "Fall", "Winter", "Spring", "Summer", "Holidays"]
@@ -139,8 +185,12 @@ def main():
     catalog = {"categories": order, "scenes": scenes, "tunes": ns["TUNES"], "icons": sorted(ns["ICONS"])}
     with open(os.path.join(OUT, "catalog.json"), "w") as f:
         json.dump(catalog, f, indent=1)
+    gallery(scenes, order)
+    # the README's picture: Mt Fuji at sunset as the shinkansen goes by, bigger and smoother
+    big_gif(ns, "Fuji", ns["Fuji"]().dur, (2026, 10, 15), os.path.join(ROOT, "docs", "fuji.gif"), start=1.2, n=60,
+            fps=20, size=12)
     shutil.rmtree(work, ignore_errors=True)
-    print("%d scenes -> studio/catalog.json, studio/previews/" % len(scenes))
+    print("%d scenes -> studio/catalog.json, studio/previews/, docs/SCENES.md" % len(scenes))
 
 
 if __name__ == "__main__":

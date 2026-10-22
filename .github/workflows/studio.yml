@@ -54,7 +54,7 @@ jobs:
         with:
           name: board_files
           path: studio/board_files
-      - run: pip install pyserial pyinstaller
+      - run: pip install pyserial pyinstaller certifi
       - name: Build
         run: |
           SEP=":"; [ "$RUNNER_OS" = "Windows" ] && SEP=";"

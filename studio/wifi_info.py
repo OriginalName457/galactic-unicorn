@@ -4,17 +4,31 @@ Only ever read when you press "Use this computer's Wi-Fi"; it goes onto the Unic
 else. The password often can't be read without asking (macOS shows a keychain prompt; Windows and Linux may need
 an administrator), in which case you type it in.
 """
+import glob
+import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
+
+
+def _encoding():
+    if sys.platform == "win32":                                 # netsh writes in the console's code page
+        try:
+            import ctypes
+            return "cp%d" % ctypes.windll.kernel32.GetOEMCP()
+        except Exception:
+            pass
+    return "utf-8"
 
 
 def _run(*cmd, timeout=20):
     flags = 0x08000000 if sys.platform == "win32" else 0         # no console window popping up on Windows
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, creationflags=flags)
-        return r.stdout if r.returncode == 0 else ""
-    except (OSError, subprocess.SubprocessError):
+        r = subprocess.run(cmd, capture_output=True, stdin=subprocess.DEVNULL, timeout=timeout, creationflags=flags)
+        return r.stdout.decode(_encoding(), "replace") if r.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError, LookupError):
         return ""
 
 
@@ -40,9 +54,19 @@ def saved_password(ssid):
     if not ssid:
         return ""
     if sys.platform == "win32":
-        m = re.search(r"Key Content\s*:\s*(.+?)\s*$", _run("netsh", "wlan", "show", "profile", "name=" + ssid,
-                                                            "key=clear"), re.M)
-        return m.group(1) if m else ""
+        # exported as XML: the same words in every language of Windows (unlike "Key Content"), and in UTF-8
+        folder = tempfile.mkdtemp()
+        try:
+            _run("netsh", "wlan", "export", "profile", "name=" + ssid, "key=clear", "folder=" + folder)
+            for path in glob.glob(os.path.join(folder, "*.xml")):
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    m = re.search(r"<keyMaterial>(.*?)</keyMaterial>", f.read(), re.S)
+                if m:
+                    return m.group(1).replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">") \
+                        .replace("&quot;", '"').replace("&apos;", "'")
+            return ""
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)               # it has the password in it
     if sys.platform == "darwin":
         return _run("security", "find-generic-password", "-D", "AirPort network password", "-a", ssid, "-w",
                     timeout=120).strip()

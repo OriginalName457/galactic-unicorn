@@ -22,6 +22,9 @@ def status():
     return " ".join("%s:%s" % (k, v) for k, v in _last.items() if v) or "-"
 
 
+_wdt = [None]           # the carousel's watchdog, fed while waiting on a slow network
+
+
 def _feed(wdt):
     if wdt:
         wdt.feed()
@@ -32,6 +35,7 @@ def _uptime():
 
 
 def tick(settings, wdt):
+    _wdt[0] = wdt
     now = _uptime()
     if _offset[0] is None:
         try:
@@ -98,10 +102,12 @@ def get(host, path):
     try:
         s.settimeout(5)
         s.connect(addr)
+        _feed(_wdt[0])
         s.send(("GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n" % (path, host)).encode())
         data = b""
         while True:
             chunk = s.recv(1024)
+            _feed(_wdt[0])
             if not chunk:
                 break
             data += chunk

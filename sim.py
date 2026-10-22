@@ -156,16 +156,16 @@ def frames(ns, scene_name, times, fake_date=None):
     return out, scene
 
 
-def picture(fr, size=8, gap=1):
-    """One frame as a picture of the LEDs (a Pillow image)."""
+def picture(fr, size=8, gap=1, dots=False):
+    """One frame as a picture of the LEDs (a Pillow image); dots=True draws them round, like the real panel."""
     from PIL import Image, ImageDraw
-    img = Image.new("RGB", (W * size, H * size), (18, 18, 20))
+    img = Image.new("RGB", (W * size, H * size), (10, 10, 12) if dots else (18, 18, 20))
     d = ImageDraw.Draw(img)
     for y in range(H):
         for x in range(W):
             r, g, b = (int(v) for v in fr[y][x])
-            d.rectangle((x * size + gap, y * size + gap, x * size + size - 1 - gap, y * size + size - 1 - gap),
-                        fill=(r, g, b) if r or g or b else (32, 32, 36))
+            box = (x * size + gap, y * size + gap, x * size + size - 1 - gap, y * size + size - 1 - gap)
+            (d.ellipse if dots else d.rectangle)(box, fill=(r, g, b) if r or g or b else (32, 32, 36))
     return img
 
 
