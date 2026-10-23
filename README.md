@@ -1,4 +1,4 @@
-# Galactic Unicorn: a year of little scenes
+# Unicornicopia: a year of little scenes for the Galactic Unicorn
 
 A carousel of pixel-art scenes for the [Pimoroni Galactic Unicorn](https://shop.pimoroni.com/products/space-unicorns?variant=40842033561683) (53×11 LEDs, Pico W) that follows the calendar. You get pumpkins and ghosts in October, a snowy cabin in December, cherry blossoms and rainbows in spring, and fireflies and the beach in summer. There are also scenes for US holidays, a clock, the local weather, alarms and timers, and your own birthdays and messages.
 
@@ -15,7 +15,7 @@ It comes with **Unicorn Studio**, a double-click app for Windows, Mac and Linux 
 
 ## Getting started (no programming)
 
-1. **Download Unicorn Studio** for your computer from the [latest release](https://github.com/OriginalName457/galactic-unicorn/releases/latest), and unzip it.
+1. **Download Unicorn Studio** for your computer from the [latest release](https://github.com/OriginalName457/unicornicopia/releases/latest), and unzip it.
 2. **Plug the Unicorn into your computer with a USB data cable.** Some USB cables only carry power; if Unicorn Studio can't find the Unicorn, try another cable.
 3. **Double-click Unicorn Studio.**
    - On a Mac, the first time: right-click it and choose **Open** (it isn't signed by Apple).
@@ -60,7 +60,7 @@ Your Wi-Fi password only ever goes to the Unicorn, over the USB cable.
 ### Running it from the source instead
 
 ```sh
-git clone https://github.com/OriginalName457/galactic-unicorn.git
+git clone https://github.com/OriginalName457/unicornicopia.git
 cd galactic-unicorn
 pip install pyserial mpy-cross==1.21.0
 python3 studio/unicorn_studio.py
@@ -82,7 +82,7 @@ It finds the Unicorn on the network by itself, or you can give its address: `uni
 Instead of Unicorn Studio, a Pi (or any always-on Linux box) can look after the Unicorn over Wi-Fi: the time, the weather, the day's Japanese words, updates and messages.
 
 ```sh
-git clone https://github.com/OriginalName457/galactic-unicorn.git ~/galactic-unicorn
+git clone https://github.com/OriginalName457/unicornicopia.git ~/galactic-unicorn
 cd ~/galactic-unicorn
 pip install mpy-cross==1.21.0 mpremote pyserial
 
